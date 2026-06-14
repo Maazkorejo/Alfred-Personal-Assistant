@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.agent.mistral_client import chat_completion
+from app.memory.db import save_message, get_recent_history
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -19,12 +20,20 @@ def chat():
     if not user_message:
         return jsonify({'error': 'Message cannot be empty'}), 400
 
-    messages = [
-        {'role': 'system', 'content': SYSTEM_PROMPT},
-        {'role': 'user', 'content': user_message},
-    ]
+    # Load recent history for context
+    history = get_recent_history(limit=10)
 
+    # Build messages list with system prompt + history + new message
+    messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
+    messages.extend(history)
+    messages.append({'role': 'user', 'content': user_message})
+
+    # Get Mistral response
     response = chat_completion(messages)
+
+    # Save both turns to Postgres
+    save_message('user', user_message)
+    save_message('assistant', response)
 
     return jsonify({
         'response': response,
