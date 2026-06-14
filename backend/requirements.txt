@@ -3,9 +3,9 @@ flask-cors==4.0.1
 flask-socketio==5.3.6
 gunicorn==22.0.0
 mistralai==1.0.3
-langgraph==0.2.14
-langchain-core==0.3.0
-psycopg2-binary==2.9.9
+langgraph>=0.2.14
+langchain-core>=0.2.27
+psycopg2-binary==2.9.12
 sqlalchemy==2.0.31
 pgvector==0.3.2
 apscheduler==3.10.4
