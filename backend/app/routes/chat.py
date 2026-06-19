@@ -1,3 +1,4 @@
+import time
 from flask import Blueprint, request, jsonify
 from app.agent.mistral_client import chat_completion
 from app.memory.db import save_message, get_recent_history
@@ -12,6 +13,7 @@ Always address the user respectfully and get straight to the point.'''
 
 @chat_bp.post('/chat')
 def chat():
+    t0 = time.time()
     data = request.get_json(silent=True)
     if not data or 'message' not in data:
         return jsonify({'error': "Missing 'message' field"}), 400
@@ -20,20 +22,27 @@ def chat():
     if not user_message:
         return jsonify({'error': 'Message cannot be empty'}), 400
 
-    # Load recent history for context
+    t1 = time.time()
     history = get_recent_history(limit=10)
+    t2 = time.time()
+    print(f"[TIMING] get_recent_history: {t2 - t1:.2f}s")
 
-    # Build messages list with system prompt + history + new message
     messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
     messages.extend(history)
     messages.append({'role': 'user', 'content': user_message})
 
-    # Get Mistral response
+    t3 = time.time()
     response = chat_completion(messages)
+    t4 = time.time()
+    print(f"[TIMING] mistral_completion: {t4 - t3:.2f}s")
 
-    # Save both turns to Postgres
+    t5 = time.time()
     save_message('user', user_message)
     save_message('assistant', response)
+    t6 = time.time()
+    print(f"[TIMING] save_message x2: {t6 - t5:.2f}s")
+
+    print(f"[TIMING] TOTAL: {t6 - t0:.2f}s")
 
     return jsonify({
         'response': response,
