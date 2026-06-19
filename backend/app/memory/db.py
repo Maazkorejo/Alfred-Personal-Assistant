@@ -4,12 +4,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+_engine = None
+
 
 def get_engine():
-    db_url = os.environ.get('DATABASE_URL')
-    if not db_url:
-        raise RuntimeError('DATABASE_URL is not set')
-    return create_engine(db_url)
+    global _engine
+    if _engine is None:
+        db_url = os.environ.get('DATABASE_URL')
+        if not db_url:
+            raise RuntimeError('DATABASE_URL is not set')
+        _engine = create_engine(
+            db_url,
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
+    return _engine
 
 
 def save_message(role: str, content: str):
