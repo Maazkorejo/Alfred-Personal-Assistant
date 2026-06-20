@@ -5,6 +5,7 @@ from app.memory.db import save_message, get_recent_history
 from app.agent.tools.gmail_tool import get_unread_emails, get_sent_emails, get_all_recent_emails, get_email_count, search_emails, search_by_sender
 from app.agent.tools.news_tool import get_top_headlines, search_news
 from app.agent.tools.weather_tool import get_weather
+from app.agent.tools.time_tool import get_current_time
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -21,6 +22,7 @@ You have access to the following tools — use them when relevant:
 - top_news: fetch top news headlines (argument is category like "technology", "sports", "business", "general", or "world" for global news)
 - search_news: search news worldwide by keyword/topic
 - get_weather: fetch current weather for a city (argument is city name, default "Jamshoro" if user doesn't specify)
+- get_time: get current time/date for a location (argument is city name, default "Jamshoro")
 
 When you decide to use a tool, respond with EXACTLY this format and nothing else:
 TOOL:tool_name:argument
@@ -37,11 +39,16 @@ TOOL:top_news:technology
 TOOL:search_news:artificial intelligence
 TOOL:get_weather:Karachi
 TOOL:get_weather:Jamshoro
+TOOL:get_time:Jamshoro
+TOOL:get_time:Tokyo
 
 If the user mentions an email address (containing @), always use search_by_sender instead of search_emails.
 If the user asks for "world news" or general news without a topic, use top_news:general.
 If the user asks about a specific topic in the news, use search_news.
 If the user asks about weather without specifying a city, use get_weather:Jamshoro.
+If the user asks for time without specifying a location, use get_time:Jamshoro.
+
+If a tool result contains the word "error", you must honestly tell the user the tool failed and why. NEVER invent, guess, or fabricate data to replace a failed tool call. Simply explain the error and offer to retry later.
 
 Otherwise just respond naturally as Alfred.
 Always address the user as Mr. Maaz.'''
@@ -179,6 +186,16 @@ def handle_tool_call(tool_response: str) -> str:
                 f"Condition: {weather['condition'].title()}\n"
                 f"Humidity: {weather['humidity']}%\n"
                 f"Wind: {weather['wind_speed']} m/s"
+            )
+
+        elif tool_name == 'get_time':
+            location = argument if argument not in ('none', '') else 'Jamshoro'
+            time_data = get_current_time(location)
+            if 'error' in time_data:
+                return f"Time error: {time_data['error']}"
+            return (
+                f"It is currently {time_data['time']} in {time_data['location']}, Mr. Maaz.\n"
+                f"Today is {time_data['date']}."
             )
 
     except Exception as ex:
