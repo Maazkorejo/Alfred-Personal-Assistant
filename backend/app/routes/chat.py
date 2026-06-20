@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from app.agent.mistral_client import chat_completion
 from app.memory.db import save_message, get_recent_history
 from app.agent.tools.gmail_tool import get_unread_emails, get_sent_emails, get_all_recent_emails, get_email_count, search_emails, search_by_sender
+from app.agent.tools.news_tool import get_top_headlines, search_news
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -16,6 +17,8 @@ You have access to the following tools — use them when relevant:
 - search_emails: find emails by subject keyword
 - search_by_sender: find emails from a specific email address
 - email_count: get count of unread emails
+- top_news: fetch top news headlines (argument is category like "technology", "sports", "business", "general", or "world" for global news)
+- search_news: search news worldwide by keyword/topic
 
 When you decide to use a tool, respond with EXACTLY this format and nothing else:
 TOOL:tool_name:argument
@@ -27,8 +30,13 @@ TOOL:recent_emails:5
 TOOL:search_emails:invoice
 TOOL:search_by_sender:arousa@theeduassist.com
 TOOL:email_count:none
+TOOL:top_news:general
+TOOL:top_news:technology
+TOOL:search_news:artificial intelligence
 
 If the user mentions an email address (containing @), always use search_by_sender instead of search_emails.
+If the user asks for "world news" or general news without a topic, use top_news:general.
+If the user asks about a specific topic in the news, use search_news.
 
 Otherwise just respond naturally as Alfred.
 Always address the user as Mr. Maaz.'''
@@ -42,7 +50,7 @@ def handle_tool_call(tool_response: str) -> str:
             return None
 
         tool_name = parts[1].strip()
-        argument = ':'.join(parts[2:]).strip()  # rejoin in case argument contains ':'
+        argument = ':'.join(parts[2:]).strip()
 
         if tool_name == 'check_emails':
             limit = int(argument) if argument.isdigit() else 5
@@ -123,6 +131,38 @@ def handle_tool_call(tool_response: str) -> str:
                 result += f"   Preview: {e['snippet'][:150]}...\n\n"
             return result.strip()
 
+        elif tool_name == 'top_news':
+            category = argument if argument not in ('none', 'world') else None
+            articles = get_top_headlines(country='us', category=category, limit=5)
+            if not articles:
+                return "No news available right now, Mr. Maaz."
+            if 'error' in articles[0]:
+                return f"News error: {articles[0]['error']}"
+            result = f"Here are today's top headlines, Mr. Maaz:\n\n"
+            for i, a in enumerate(articles, 1):
+                result += f"{i}. **{a['title']}** ({a['source']})\n"
+                if a['description']:
+                    result += f"   {a['description']}\n"
+                result += "\n"
+            return result.strip()
+
+        elif tool_name == 'search_news':
+            query = argument if argument != 'none' else ''
+            if not query:
+                return "Please specify a news topic, Mr. Maaz."
+            articles = search_news(query, limit=5)
+            if not articles:
+                return f"No news found about '{query}', Mr. Maaz."
+            if 'error' in articles[0]:
+                return f"News error: {articles[0]['error']}"
+            result = f"Latest news on '{query}', Mr. Maaz:\n\n"
+            for i, a in enumerate(articles, 1):
+                result += f"{i}. **{a['title']}** ({a['source']})\n"
+                if a['description']:
+                    result += f"   {a['description']}\n"
+                result += "\n"
+            return result.strip()
+
     except Exception as ex:
         return f"Tool execution error: {str(ex)}"
 
@@ -146,16 +186,13 @@ def chat():
     messages.extend(history)
     messages.append({'role': 'user', 'content': user_message})
 
-    # First LLM call — decide if tool needed
     response = chat_completion(messages)
 
-    # Check if LLM wants to use a tool
     if response.strip().startswith('TOOL:'):
         print(f"[TOOL] Calling: {response.strip()}")
         tool_result = handle_tool_call(response.strip())
 
         if tool_result:
-            # Second LLM call — compose final reply using tool result
             messages.append({'role': 'assistant', 'content': response})
             messages.append({'role': 'user', 'content': f'[TOOL RESULT] {tool_result}'})
             final_response = chat_completion(messages)
