@@ -4,6 +4,7 @@ import TopBar from './components/TopBar';
 import BlackHole from './components/BlackHole';
 import InputBar from './components/InputBar';
 import ChatLog from './components/ChatLog';
+import EmailPanel from './components/EmailPanel';
 import './styles/main.css';
 
 function App() {
@@ -33,6 +34,8 @@ function App() {
     sendMessage(text);
   };
 
+  const isEmailPanel = activeNav === 'Email';
+
   return (
     <div className="app">
       <Sidebar
@@ -47,21 +50,27 @@ function App() {
 
         <TopBar alfredState={alfredState} toggleMic={toggleMic} />
 
-        <div id="center">
-          <BlackHole alfredState={alfredState} />
-          <ChatLog messages={messages} />
-          <div id="agent-status">
-            Neural core online &middot; memory active &middot; awaiting command
-          </div>
-        </div>
+        {isEmailPanel ? (
+          <EmailPanel onBack={() => setActiveNav('New Chat')} />
+        ) : (
+          <>
+            <div id="center">
+              <BlackHole alfredState={alfredState} />
+              <ChatLog messages={messages} />
+              <div id="agent-status">
+                Neural core online &middot; memory active &middot; awaiting command
+              </div>
+            </div>
 
-        <InputBar
-          inputValue={inputValue}
-          setInputValue={setInputValue}
-          onSend={handleSend}
-          onFocus={handleInputFocus}
-          onBlur={handleInputBlur}
-        />
+            <InputBar
+              inputValue={inputValue}
+              setInputValue={setInputValue}
+              onSend={handleSend}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+            />
+          </>
+        )}
       </div>
     </div>
   );
