@@ -18,10 +18,27 @@ export function useAlfred() {
     setAlfredState(s);
   }, []);
 
+  const stripMarkdown = (text) => {
+    return text
+      .replace(/\*\*\*(.*?)\*\*\*/g, '$1')   // bold+italic
+      .replace(/\*\*(.*?)\*\*/g, '$1')        // bold
+      .replace(/\*(.*?)\*/g, '$1')            // italic
+      .replace(/#{1,6}\s?/g, '')              // headers
+      .replace(/`(.*?)`/g, '$1')              // inline code
+      .replace(/^[-*+]\s/gm, '')              // bullet points
+      .replace(/^\d+\.\s/gm, '')              // numbered lists
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1')     // links
+      .replace(/\n{2,}/g, '. ')               // paragraph breaks → pause
+      .replace(/\n/g, ' ')                    // single newlines
+      .replace(/-{2,}/g, '')                  // horizontal rules
+      .trim();
+  };
+
   const speak = useCallback((text) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(text);
+      const cleanText = stripMarkdown(text);
+      const utt = new SpeechSynthesisUtterance(cleanText);
       utt.rate = 0.95;
       utt.pitch = 0.9;
       window.speechSynthesis.speak(utt);
