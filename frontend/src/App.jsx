@@ -5,6 +5,7 @@ import BlackHole from './components/BlackHole';
 import InputBar from './components/InputBar';
 import ChatLog from './components/ChatLog';
 import EmailPanel from './components/EmailPanel';
+import MemoryPanel from './components/MemoryPanel';
 import './styles/main.css';
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
   };
 
   const isEmailPanel = activeNav === 'Email';
+  const isMemoryPanel = activeNav === 'Memory';
 
   return (
     <div className="app">
@@ -52,6 +54,8 @@ function App() {
 
         {isEmailPanel ? (
           <EmailPanel onBack={() => setActiveNav('New Chat')} />
+        ) : isMemoryPanel ? (
+          <MemoryPanel onBack={() => setActiveNav('New Chat')} />
         ) : (
           <>
             <div id="center">
