@@ -4,6 +4,7 @@ from app.agent.mistral_client import chat_completion
 from app.memory.db import save_message, get_recent_history
 from app.agent.tools.gmail_tool import get_unread_emails, get_sent_emails, get_all_recent_emails, get_email_count, search_emails, search_by_sender
 from app.agent.tools.news_tool import get_top_headlines, search_news
+from app.agent.tools.weather_tool import get_weather
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -19,6 +20,7 @@ You have access to the following tools — use them when relevant:
 - email_count: get count of unread emails
 - top_news: fetch top news headlines (argument is category like "technology", "sports", "business", "general", or "world" for global news)
 - search_news: search news worldwide by keyword/topic
+- get_weather: fetch current weather for a city (argument is city name, default "Jamshoro" if user doesn't specify)
 
 When you decide to use a tool, respond with EXACTLY this format and nothing else:
 TOOL:tool_name:argument
@@ -33,10 +35,13 @@ TOOL:email_count:none
 TOOL:top_news:general
 TOOL:top_news:technology
 TOOL:search_news:artificial intelligence
+TOOL:get_weather:Karachi
+TOOL:get_weather:Jamshoro
 
 If the user mentions an email address (containing @), always use search_by_sender instead of search_emails.
 If the user asks for "world news" or general news without a topic, use top_news:general.
 If the user asks about a specific topic in the news, use search_news.
+If the user asks about weather without specifying a city, use get_weather:Jamshoro.
 
 Otherwise just respond naturally as Alfred.
 Always address the user as Mr. Maaz.'''
@@ -162,6 +167,19 @@ def handle_tool_call(tool_response: str) -> str:
                     result += f"   {a['description']}\n"
                 result += "\n"
             return result.strip()
+
+        elif tool_name == 'get_weather':
+            city = argument if argument not in ('none', '') else 'Jamshoro'
+            weather = get_weather(city)
+            if 'error' in weather:
+                return f"Weather error: {weather['error']}"
+            return (
+                f"Current weather in {weather['city']}, {weather['country']}, Mr. Maaz:\n\n"
+                f"Temperature: {weather['temp']}°C (feels like {weather['feels_like']}°C)\n"
+                f"Condition: {weather['condition'].title()}\n"
+                f"Humidity: {weather['humidity']}%\n"
+                f"Wind: {weather['wind_speed']} m/s"
+            )
 
     except Exception as ex:
         return f"Tool execution error: {str(ex)}"
