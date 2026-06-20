@@ -9,8 +9,9 @@ def create_app(config_name: str = 'default') -> Flask:
 
     CORS(app, origins=[app.config['FRONTEND_URL']])
 
-    from .routes import health_bp, chat_bp
+    from .routes import health_bp, chat_bp, emails_bp
     app.register_blueprint(health_bp)
-    app.register_blueprint(chat_bp, url_prefix='/api')
-
+    app.register_blueprint(chat_bp, url_prefix="/api")
+    app.register_blueprint(emails_bp, url_prefix="/api")
+    
     return app
