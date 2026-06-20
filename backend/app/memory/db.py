@@ -46,3 +46,39 @@ def get_recent_history(limit: int = 10) -> list[dict]:
         )
         rows = result.fetchall()
         return [{'role': r[0], 'content': r[1]} for r in reversed(rows)]
+
+def get_all_history(limit: int = 100) -> list[dict]:
+    """Fetch full conversation history for the Memory panel."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(
+            text(
+                'SELECT role, content, created_at FROM conversation_history ORDER BY created_at DESC LIMIT :limit'
+            ),
+            {'limit': limit}
+        )
+        rows = result.fetchall()
+        return [
+            {'role': r[0], 'content': r[1], 'created_at': str(r[2])}
+            for r in rows
+        ]
+
+
+def get_memory_stats() -> dict:
+    """Get summary stats about stored memory."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(text('SELECT COUNT(*), MIN(created_at) FROM conversation_history'))
+        row = result.fetchone()
+        return {
+            'total_messages': row[0] or 0,
+            'first_message_at': str(row[1]) if row[1] else None,
+        }
+
+
+def clear_all_history():
+    """Delete all conversation history."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text('DELETE FROM conversation_history'))
+        conn.commit()
