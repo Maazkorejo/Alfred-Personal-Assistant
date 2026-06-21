@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 export default function ChatLog({ messages }) {
   const logRef = useRef(null);
@@ -16,7 +17,12 @@ export default function ChatLog({ messages }) {
       {messages.map((msg, i) => (
         <div key={i} className={`chat-row ${msg.role === 'user' ? 'chat-row-user' : 'chat-row-alfred'}`}>
           <div className="chat-avatar">{msg.role === 'user' ? 'YOU' : 'AL'}</div>
-          <div className="chat-bubble">{msg.content}</div>
+          <div className="chat-bubble">
+            {msg.role === 'assistant'
+              ? <ReactMarkdown>{msg.content}</ReactMarkdown>
+              : msg.content
+            }
+          </div>
         </div>
       ))}
     </div>
