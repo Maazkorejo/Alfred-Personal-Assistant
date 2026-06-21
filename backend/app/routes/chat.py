@@ -6,6 +6,7 @@ from app.agent.tools.gmail_tool import get_unread_emails, get_sent_emails, get_a
 from app.agent.tools.news_tool import get_top_headlines, search_news
 from app.agent.tools.weather_tool import get_weather
 from app.agent.tools.time_tool import get_current_time
+from app.agent.tools.system_tool import open_website
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -23,6 +24,7 @@ You have access to the following tools — use them when relevant:
 - search_news: search news worldwide by keyword/topic
 - get_weather: fetch current weather for a city (argument is city name, default "Jamshoro" if user doesn't specify)
 - get_time: get current time/date for a location (argument is city name, default "Jamshoro")
+- open_browser: open a website in the user's default browser (argument is site name like "youtube", "github", a full URL, or a search query like "Japan vs Tunisia on youtube")
 
 When you decide to use a tool, respond with EXACTLY this format and nothing else:
 TOOL:tool_name:argument
@@ -41,17 +43,23 @@ TOOL:get_weather:Karachi
 TOOL:get_weather:Jamshoro
 TOOL:get_time:Jamshoro
 TOOL:get_time:Tokyo
+TOOL:open_browser:youtube
+TOOL:open_browser:github
+TOOL:open_browser:Japan vs Tunisia World Cup 2026 on youtube
 
 If the user mentions an email address (containing @), always use search_by_sender instead of search_emails.
 If the user asks for "world news" or general news without a topic, use top_news:general.
 If the user asks about a specific topic in the news, use search_news.
 If the user asks about weather without specifying a city, use get_weather:Jamshoro.
 If the user asks for time without specifying a location, use get_time:Jamshoro.
+If the user asks to open, launch, visit, watch, or search for something on the web (including YouTube videos), use open_browser. If they mention YouTube specifically, include "on youtube" in the argument.
 
 If a tool result contains the word "error", you must honestly tell the user the tool failed and why. NEVER invent, guess, or fabricate data to replace a failed tool call. Simply explain the error and offer to retry later.
 
+After a tool result is provided to you, NEVER repeat or mention the TOOL: syntax in your reply. Just respond in natural butler language describing what you did.
+
 Otherwise just respond naturally as Alfred.
-Always address the user as Mr. Maaz.'''
+Address the user by whatever name they request — if they ask you to call them something specific, remember and use that name going forward instead of "Mr. Maaz".'''
 
 
 def handle_tool_call(tool_response: str) -> str:
@@ -68,8 +76,8 @@ def handle_tool_call(tool_response: str) -> str:
             limit = int(argument) if argument.isdigit() else 5
             emails = get_unread_emails(limit=limit)
             if not emails:
-                return "You have no unread emails, Mr. Maaz."
-            result = f"You have {len(emails)} unread email(s), Mr. Maaz:\n\n"
+                return "You have no unread emails."
+            result = f"You have {len(emails)} unread email(s):\n\n"
             for i, e in enumerate(emails, 1):
                 if 'error' in e:
                     return f"Error reading emails: {e['error']}"
@@ -82,7 +90,7 @@ def handle_tool_call(tool_response: str) -> str:
             limit = int(argument) if argument.isdigit() else 5
             emails = get_sent_emails(limit=limit)
             if not emails:
-                return "No sent emails found, Mr. Maaz."
+                return "No sent emails found."
             result = f"Your {len(emails)} most recently sent email(s):\n\n"
             for i, e in enumerate(emails, 1):
                 if 'error' in e:
@@ -96,7 +104,7 @@ def handle_tool_call(tool_response: str) -> str:
             limit = int(argument) if argument.isdigit() else 5
             emails = get_all_recent_emails(limit=limit)
             if not emails:
-                return "No recent emails found, Mr. Maaz."
+                return "No recent emails found."
             result = f"Your {len(emails)} most recent email(s):\n\n"
             for i, e in enumerate(emails, 1):
                 if 'error' in e:
@@ -109,16 +117,16 @@ def handle_tool_call(tool_response: str) -> str:
         elif tool_name == 'email_count':
             count = get_email_count()
             if count == -1:
-                return "I was unable to connect to your inbox, Mr. Maaz."
-            return f"You have {count} unread emails in your inbox, Mr. Maaz."
+                return "I was unable to connect to your inbox."
+            return f"You have {count} unread emails in your inbox."
 
         elif tool_name == 'search_emails':
             query = argument if argument != 'none' else ''
             if not query:
-                return "Please specify what to search for, Mr. Maaz."
+                return "Please specify what to search for."
             emails = search_emails(query, limit=5)
             if not emails:
-                return f"No emails found matching '{query}', Mr. Maaz."
+                return f"No emails found matching '{query}'."
             result = f"Found {len(emails)} email(s) matching '{query}':\n\n"
             for i, e in enumerate(emails, 1):
                 if 'error' in e:
@@ -130,10 +138,10 @@ def handle_tool_call(tool_response: str) -> str:
         elif tool_name == 'search_by_sender':
             sender = argument if argument != 'none' else ''
             if not sender:
-                return "Please specify the sender's email address, Mr. Maaz."
+                return "Please specify the sender's email address."
             emails = search_by_sender(sender, limit=5)
             if not emails:
-                return f"No emails found from '{sender}', Mr. Maaz."
+                return f"No emails found from '{sender}'."
             result = f"Found {len(emails)} email(s) from '{sender}':\n\n"
             for i, e in enumerate(emails, 1):
                 if 'error' in e:
@@ -147,10 +155,10 @@ def handle_tool_call(tool_response: str) -> str:
             category = argument if argument not in ('none', 'world') else None
             articles = get_top_headlines(country='us', category=category, limit=5)
             if not articles:
-                return "No news available right now, Mr. Maaz."
+                return "No news available right now."
             if 'error' in articles[0]:
                 return f"News error: {articles[0]['error']}"
-            result = f"Here are today's top headlines, Mr. Maaz:\n\n"
+            result = f"Here are today's top headlines:\n\n"
             for i, a in enumerate(articles, 1):
                 result += f"{i}. **{a['title']}** ({a['source']})\n"
                 if a['description']:
@@ -161,13 +169,13 @@ def handle_tool_call(tool_response: str) -> str:
         elif tool_name == 'search_news':
             query = argument if argument != 'none' else ''
             if not query:
-                return "Please specify a news topic, Mr. Maaz."
+                return "Please specify a news topic."
             articles = search_news(query, limit=5)
             if not articles:
-                return f"No news found about '{query}', Mr. Maaz."
+                return f"No news found about '{query}'."
             if 'error' in articles[0]:
                 return f"News error: {articles[0]['error']}"
-            result = f"Latest news on '{query}', Mr. Maaz:\n\n"
+            result = f"Latest news on '{query}':\n\n"
             for i, a in enumerate(articles, 1):
                 result += f"{i}. **{a['title']}** ({a['source']})\n"
                 if a['description']:
@@ -181,7 +189,7 @@ def handle_tool_call(tool_response: str) -> str:
             if 'error' in weather:
                 return f"Weather error: {weather['error']}"
             return (
-                f"Current weather in {weather['city']}, {weather['country']}, Mr. Maaz:\n\n"
+                f"Current weather in {weather['city']}, {weather['country']}:\n\n"
                 f"Temperature: {weather['temp']}°C (feels like {weather['feels_like']}°C)\n"
                 f"Condition: {weather['condition'].title()}\n"
                 f"Humidity: {weather['humidity']}%\n"
@@ -194,9 +202,18 @@ def handle_tool_call(tool_response: str) -> str:
             if 'error' in time_data:
                 return f"Time error: {time_data['error']}"
             return (
-                f"It is currently {time_data['time']} in {time_data['location']}, Mr. Maaz.\n"
+                f"It is currently {time_data['time']} in {time_data['location']}.\n"
                 f"Today is {time_data['date']}."
             )
+
+        elif tool_name == 'open_browser':
+            site = argument if argument not in ('none', '') else ''
+            if not site:
+                return "Please specify what to open."
+            result = open_website(site)
+            if not result['success']:
+                return f"Browser error: {result['error']}"
+            return f"Opened: {result['url']}"
 
     except Exception as ex:
         return f"Tool execution error: {str(ex)}"
@@ -229,7 +246,7 @@ def chat():
 
         if tool_result:
             messages.append({'role': 'assistant', 'content': response})
-            messages.append({'role': 'user', 'content': f'[TOOL RESULT] {tool_result}'})
+            messages.append({'role': 'user', 'content': f'[TOOL RESULT] {tool_result}. Now respond naturally to the user in plain language — do not output TOOL: syntax.'})
             final_response = chat_completion(messages)
         else:
             final_response = response
