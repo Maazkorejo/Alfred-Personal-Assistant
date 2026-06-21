@@ -7,59 +7,53 @@ from app.agent.tools.news_tool import get_top_headlines, search_news
 from app.agent.tools.weather_tool import get_weather
 from app.agent.tools.time_tool import get_current_time
 from app.agent.tools.system_tool import open_website
+from app.agent.tools.app_launcher_tool import open_app, open_path
 
 chat_bp = Blueprint('chat', __name__)
 
-SYSTEM_PROMPT = '''You are Alfred, a personal AI operating assistant for Maaz Korejo.
-You are helpful, concise, and professional like a butler.
-You have access to the following tools — use them when relevant:
+SYSTEM_PROMPT = '''CRITICAL RULE: When you need to use a tool, your ENTIRE response must be ONLY this format, nothing else, no explanation before or after:
+TOOL:tool_name:argument
 
+You are Alfred, a personal AI operating assistant for Maaz Korejo. You are helpful, concise, and professional like a butler.
+
+AVAILABLE TOOLS:
 - check_emails: fetch unread emails from inbox
 - check_sent: fetch recently sent emails
 - recent_emails: fetch recent inbox emails (read and unread)
 - search_emails: find emails by subject keyword
 - search_by_sender: find emails from a specific email address
 - email_count: get count of unread emails
-- top_news: fetch top news headlines (argument is category like "technology", "sports", "business", "general", or "world" for global news)
+- top_news: fetch top news headlines (argument is category like "technology", "sports", "business", "general", or "world")
 - search_news: search news worldwide by keyword/topic
-- get_weather: fetch current weather for a city (argument is city name, default "Jamshoro" if user doesn't specify)
+- get_weather: fetch current weather for a city (argument is city name, default "Jamshoro")
 - get_time: get current time/date for a location (argument is city name, default "Jamshoro")
-- open_browser: open a website in the user's default browser (argument is site name like "youtube", "github", a full URL, or a search query like "Japan vs Tunisia on youtube")
+- open_browser: open a website (argument is site name, URL, or search query)
+- open_app: open any installed desktop or Windows Store application by name (e.g. "spotify", "notepad", "discord", "linkedin", "chrome")
+- open_path: open a specific file or folder by its full path (argument is the absolute path, e.g. "C:\\Users\\maazk\\Desktop" or "C:\\Users\\maazk\\Documents\\report.pdf")
 
-When you decide to use a tool, respond with EXACTLY this format and nothing else:
-TOOL:tool_name:argument
-
-Examples:
+TOOL CALL EXAMPLES (respond with ONLY this, no other text):
 TOOL:check_emails:5
-TOOL:check_sent:5
-TOOL:recent_emails:5
-TOOL:search_emails:invoice
-TOOL:search_by_sender:arousa@theeduassist.com
-TOOL:email_count:none
-TOOL:top_news:general
-TOOL:top_news:technology
-TOOL:search_news:artificial intelligence
 TOOL:get_weather:Karachi
-TOOL:get_weather:Jamshoro
-TOOL:get_time:Jamshoro
 TOOL:get_time:Tokyo
 TOOL:open_browser:youtube
-TOOL:open_browser:github
-TOOL:open_browser:Japan vs Tunisia World Cup 2026 on youtube
+TOOL:open_app:spotify
+TOOL:open_app:linkedin
+TOOL:open_path:C:\\Users\\maazk\\Desktop
 
-If the user mentions an email address (containing @), always use search_by_sender instead of search_emails.
-If the user asks for "world news" or general news without a topic, use top_news:general.
-If the user asks about a specific topic in the news, use search_news.
-If the user asks about weather without specifying a city, use get_weather:Jamshoro.
-If the user asks for time without specifying a location, use get_time:Jamshoro.
-If the user asks to open, launch, visit, watch, or search for something on the web (including YouTube videos), use open_browser. If they mention YouTube specifically, include "on youtube" in the argument.
+RULES:
+- If the user mentions an email address (@), use search_by_sender.
+- If asked for general/world news, use top_news:general.
+- If asked about weather/time without a city, default to Jamshoro.
+- If asked to open/launch/watch/search something on the web, use open_browser.
+- If asked to open a DESKTOP APP (Spotify, Notepad, Discord, LinkedIn, VS Code), use open_app — NOT open_browser.
+- If the user asks to open a specific file or folder by path, use open_path.
+- NEVER say you will use a tool without actually outputting the TOOL: format. If you mean to call a tool, your full response must be JUST the TOOL: line.
+- If a tool result contains "error", be honest about the failure. NEVER fabricate data.
+- After a tool result is given to you, respond in natural language ONLY — never output TOOL: syntax in your final answer to the user.
+- For anything else, respond naturally as Alfred.
+- Address the user by whatever name they request.
 
-If a tool result contains the word "error", you must honestly tell the user the tool failed and why. NEVER invent, guess, or fabricate data to replace a failed tool call. Simply explain the error and offer to retry later.
-
-After a tool result is provided to you, NEVER repeat or mention the TOOL: syntax in your reply. Just respond in natural butler language describing what you did.
-
-Otherwise just respond naturally as Alfred.
-Address the user by whatever name they request — if they ask you to call them something specific, remember and use that name going forward instead of "Mr. Maaz".'''
+REMEMBER: Tool calls must be EXACTLY "TOOL:name:argument" with no extra words before or after.'''
 
 
 def handle_tool_call(tool_response: str) -> str:
@@ -214,6 +208,24 @@ def handle_tool_call(tool_response: str) -> str:
             if not result['success']:
                 return f"Browser error: {result['error']}"
             return f"Opened: {result['url']}"
+
+        elif tool_name == 'open_app':
+            app_name = argument if argument not in ('none', '') else ''
+            if not app_name:
+                return "Please specify which app to open."
+            result = open_app(app_name)
+            if not result['success']:
+                return f"App launch error: {result['error']}"
+            return f"Opening {app_name} now."
+
+        elif tool_name == 'open_path':
+            path = argument if argument not in ('none', '') else ''
+            if not path:
+                return "Please specify the file or folder path."
+            result = open_path(path)
+            if not result['success']:
+                return f"Path error: {result['error']}"
+            return f"Opened: {result['path']}"
 
     except Exception as ex:
         return f"Tool execution error: {str(ex)}"
