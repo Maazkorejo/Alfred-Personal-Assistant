@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { useSpeechRecognition } from './useSpeechRecognition';
 
 const STATE_CONFIG = {
   idle:       { label: 'IDLE',         pillColor: 'rgba(232,213,163,0.45)', bg: 'rgba(255,200,80,0.10)',  dot: 'rgba(232,213,163,0.45)', nameRgb: '232,213,163' },
@@ -20,17 +21,17 @@ export function useAlfred() {
 
   const stripMarkdown = (text) => {
     return text
-      .replace(/\*\*\*(.*?)\*\*\*/g, '$1')   // bold+italic
-      .replace(/\*\*(.*?)\*\*/g, '$1')        // bold
-      .replace(/\*(.*?)\*/g, '$1')            // italic
-      .replace(/#{1,6}\s?/g, '')              // headers
-      .replace(/`(.*?)`/g, '$1')              // inline code
-      .replace(/^[-*+]\s/gm, '')              // bullet points
-      .replace(/^\d+\.\s/gm, '')              // numbered lists
-      .replace(/\[(.*?)\]\(.*?\)/g, '$1')     // links
-      .replace(/\n{2,}/g, '. ')               // paragraph breaks → pause
-      .replace(/\n/g, ' ')                    // single newlines
-      .replace(/-{2,}/g, '')                  // horizontal rules
+      .replace(/\*\*\*(.*?)\*\*\*/g, '$1')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/#{1,6}\s?/g, '')
+      .replace(/`(.*?)`/g, '$1')
+      .replace(/^[-*+]\s/gm, '')
+      .replace(/^\d+\.\s/gm, '')
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, ' ')
+      .replace(/-{2,}/g, '')
       .trim();
   };
 
@@ -75,9 +76,23 @@ export function useAlfred() {
     }
   }, [setState, speak]);
 
+  const speech = useSpeechRecognition({
+    onStart: () => setState('listening'),
+    onEnd: () => {
+      setState((prev) => (prev === 'listening' ? 'idle' : prev));
+    },
+    onResult: (transcript) => {
+      sendMessage(transcript);
+    },
+  });
+
   const toggleMic = useCallback(() => {
-    setState(alfredState === 'listening' ? 'idle' : 'listening');
-  }, [alfredState, setState]);
+    if (speech.isListening) {
+      speech.stopListening();
+    } else {
+      speech.startListening();
+    }
+  }, [speech]);
 
   return {
     alfredState,
@@ -90,5 +105,6 @@ export function useAlfred() {
     setActiveNav,
     sendMessage,
     toggleMic,
+    isSpeechSupported: speech.isSupported,
   };
 }
