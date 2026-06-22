@@ -1,4 +1,5 @@
 import time
+import re
 from flask import Blueprint, request, jsonify
 from app.agent.mistral_client import chat_completion
 from app.memory.db import save_message, get_recent_history
@@ -47,13 +48,13 @@ RULES:
 - If asked to open/launch/watch/search something on the web, use open_browser.
 - If asked to open a DESKTOP APP (Spotify, Notepad, Discord, LinkedIn, VS Code), use open_app — NOT open_browser.
 - If the user asks to open a specific file or folder by path, use open_path.
-- NEVER say you will use a tool without actually outputting the TOOL: format. If you mean to call a tool, your full response must be JUST the TOOL: line.
+- NEVER say you will use a tool without actually outputting the TOOL: format. If you mean to call a tool, your full response must be JUST the TOOL: line — no narration, no explanation, no "let me check" before it.
 - If a tool result contains "error", be honest about the failure. NEVER fabricate data.
 - After a tool result is given to you, respond in natural language ONLY — never output TOOL: syntax in your final answer to the user.
 - For anything else, respond naturally as Alfred.
 - Address the user by whatever name they request.
 
-REMEMBER: Tool calls must be EXACTLY "TOOL:name:argument" with no extra words before or after.'''
+REMEMBER: Tool calls must be EXACTLY "TOOL:name:argument" with absolutely no extra words, explanation, or narration before or after. Not even "Let me check that for you" — just the TOOL: line by itself.'''
 
 
 def handle_tool_call(tool_response: str) -> str:
@@ -252,9 +253,13 @@ def chat():
 
     response = chat_completion(messages)
 
-    if response.strip().startswith('TOOL:'):
-        print(f"[TOOL] Calling: {response.strip()}")
-        tool_result = handle_tool_call(response.strip())
+    # Extract TOOL: call even if surrounded by other text
+    tool_match = re.search(r'TOOL:([a-z_]+):([^\n]+)', response)
+
+    if tool_match:
+        tool_call_str = f"TOOL:{tool_match.group(1)}:{tool_match.group(2)}"
+        print(f"[TOOL] Calling: {tool_call_str}")
+        tool_result = handle_tool_call(tool_call_str)
 
         if tool_result:
             messages.append({'role': 'assistant', 'content': response})
