@@ -1,6 +1,7 @@
 import imaplib
 import email
 import os
+import time
 from email.header import decode_header
 from dotenv import load_dotenv
 
@@ -9,10 +10,33 @@ load_dotenv()
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS')
 GMAIL_APP_PASSWORD = os.environ.get('GMAIL_APP_PASSWORD')
 
+_imap_connection = None
+_imap_last_used = 0
+IMAP_IDLE_TIMEOUT = 240  # Gmail drops idle connections after ~5-10 min; refresh before that
+
 
 def connect_imap():
+    """
+    Return a persistent IMAP connection, reconnecting only if
+    it's stale, broken, or never connected.
+    """
+    global _imap_connection, _imap_last_used
+
+    now = time.time()
+
+    if _imap_connection is not None and (now - _imap_last_used) < IMAP_IDLE_TIMEOUT:
+        try:
+            # Lightweight check that the connection is still alive
+            _imap_connection.noop()
+            _imap_last_used = now
+            return _imap_connection
+        except Exception:
+            _imap_connection = None
+
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
     mail.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+    _imap_connection = mail
+    _imap_last_used = now
     return mail
 
 
@@ -60,7 +84,6 @@ def fetch_emails_from_folder(folder='INBOX', criteria='UNSEEN', limit=5):
         ids = message_ids[0].split()
 
         if not ids:
-            mail.logout()
             return []
 
         recent_ids = ids[-limit:]
@@ -79,7 +102,6 @@ def fetch_emails_from_folder(folder='INBOX', criteria='UNSEEN', limit=5):
                 'snippet': get_body(msg),
             })
 
-        mail.logout()
         return emails
 
     except Exception as e:
@@ -108,7 +130,6 @@ def get_email_count():
         mail.select('INBOX')
         _, message_ids = mail.search(None, 'UNSEEN')
         count = len(message_ids[0].split()) if message_ids[0] else 0
-        mail.logout()
         return count
     except Exception as e:
         return -1
@@ -141,7 +162,6 @@ def search_emails(query, limit=5, folder='INBOX'):
             ids = message_ids[0].split()
 
         if not ids:
-            mail.logout()
             return []
 
         recent_ids = ids[-limit:]
@@ -184,7 +204,6 @@ def search_by_sender(sender_email, limit=5, folder='INBOX'):
             ids = message_ids[0].split()
 
         if not ids:
-            mail.logout()
             return []
 
         recent_ids = ids[-limit:]
@@ -203,7 +222,6 @@ def search_by_sender(sender_email, limit=5, folder='INBOX'):
                 'snippet': get_body(msg),
             })
 
-        mail.logout()
         return emails
 
     except Exception as e:
