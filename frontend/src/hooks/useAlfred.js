@@ -35,7 +35,29 @@ export function useAlfred() {
       .trim();
   };
 
-  const speak = useCallback((text) => {
+  const speak = useCallback(async (text) => {
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/tts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+
+      if (data.filename) {
+        const audio = new Audio(`http://127.0.0.1:5000/api/tts/audio/${data.filename}`);
+        audio.play();
+      } else {
+        // Fallback to browser TTS if Piper fails
+        fallbackSpeak(text);
+      }
+    } catch (err) {
+      console.error('Piper TTS failed, falling back to browser TTS:', err);
+      fallbackSpeak(text);
+    }
+  }, []);
+
+  const fallbackSpeak = (text) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const cleanText = stripMarkdown(text);
@@ -44,7 +66,7 @@ export function useAlfred() {
       utt.pitch = 0.9;
       window.speechSynthesis.speak(utt);
     }
-  }, []);
+  };
 
   const sendMessage = useCallback(async (text) => {
     if (!text.trim()) return;
