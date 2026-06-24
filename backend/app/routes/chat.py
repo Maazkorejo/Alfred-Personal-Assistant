@@ -245,36 +245,51 @@ def chat():
     if not user_message:
         return jsonify({'error': 'Message cannot be empty'}), 400
 
+    t1 = time.time()
     history = get_recent_history(limit=10)
+    t2 = time.time()
+    print(f"[TIMING] get_recent_history: {t2 - t1:.2f}s")
 
     messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
     messages.extend(history)
     messages.append({'role': 'user', 'content': user_message})
 
+    t3 = time.time()
     response = chat_completion(messages)
+    t4 = time.time()
+    print(f"[TIMING] first mistral call: {t4 - t3:.2f}s")
 
-    # Extract TOOL: call even if surrounded by other text
     tool_match = re.search(r'TOOL:([a-z_]+):([^\n]+)', response)
 
     if tool_match:
         tool_call_str = f"TOOL:{tool_match.group(1)}:{tool_match.group(2)}"
         print(f"[TOOL] Calling: {tool_call_str}")
+
+        t5 = time.time()
         tool_result = handle_tool_call(tool_call_str)
+        t6 = time.time()
+        print(f"[TIMING] tool execution ({tool_match.group(1)}): {t6 - t5:.2f}s")
 
         if tool_result:
             messages.append({'role': 'assistant', 'content': response})
             messages.append({'role': 'user', 'content': f'[TOOL RESULT] {tool_result}. Now respond naturally to the user in plain language — do not output TOOL: syntax.'})
+
+            t7 = time.time()
             final_response = chat_completion(messages)
+            t8 = time.time()
+            print(f"[TIMING] second mistral call: {t8 - t7:.2f}s")
         else:
             final_response = response
     else:
         final_response = response
 
+    t9 = time.time()
     save_message('user', user_message)
     save_message('assistant', final_response)
+    t10 = time.time()
+    print(f"[TIMING] save_message x2: {t10 - t9:.2f}s")
 
-    t1 = time.time()
-    print(f"[TIMING] TOTAL: {t1 - t0:.2f}s")
+    print(f"[TIMING] TOTAL: {t10 - t0:.2f}s")
 
     return jsonify({
         'response': final_response,
