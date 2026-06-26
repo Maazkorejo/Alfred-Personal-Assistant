@@ -13,6 +13,7 @@ from app.agent.tools.time_tool import get_current_time
 from app.agent.tools.system_tool import open_website
 from app.agent.tools.app_launcher_tool import open_app, open_path
 from app.agent.tools.calendar_tool import add_event, get_today_events, get_upcoming_events, delete_event, search_events
+from app.agent.tools.reminder_tool import create_reminder, list_reminders, complete_reminder, delete_reminder, parse_relative_time
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -40,6 +41,10 @@ AVAILABLE TOOLS:
 - upcoming_events: get events in the next N days (argument: number of days, e.g. 7)
 - delete_event: delete a calendar event by ID (argument: event UUID)
 - search_calendar: search calendar events by keyword (argument: keyword)
+- set_reminder: set a reminder (argument format: "title|YYYY-MM-DD HH:MM")
+- list_reminders: show all pending reminders (argument: none)
+- complete_reminder: mark a reminder as done (argument: reminder ID number)
+- delete_reminder: delete a reminder (argument: reminder ID number)
 
 TOOL CALL EXAMPLES (respond with ONLY this, no other text):
 TOOL:check_emails:5
@@ -56,6 +61,11 @@ TOOL:today_events:none
 TOOL:upcoming_events:7
 TOOL:delete_event:uuid-here
 TOOL:search_calendar:meeting
+TOOL:set_reminder:Call Ali|2025-01-15 14:00
+TOOL:set_reminder:Take medicine|2025-01-15 08:00
+TOOL:list_reminders:none
+TOOL:complete_reminder:3
+TOOL:delete_reminder:3
 
 RULES:
 - If the user mentions an email address (@), use search_by_sender.
@@ -64,10 +74,12 @@ RULES:
 - If asked to open/launch/watch/search something on the web, use open_browser.
 - If asked to open a DESKTOP APP (Spotify, Notepad, Discord, LinkedIn, VS Code), use open_app — NOT open_browser.
 - If the user asks to open a specific file or folder by path, use open_path.
-- For calendar events, parse the date and time naturally. If user says "tomorrow at 3pm", convert to the correct YYYY-MM-DD HH:MM format based on today's date.
-- If user says "today" for an event, use today's date. If they say "next Monday", calculate the correct date.
-- Always confirm the event details naturally after adding.
+- For calendar events and reminders, parse the date and time naturally using the CURRENT DATE AND TIME provided below.
+- If user says "tomorrow at 3pm", convert to the correct YYYY-MM-DD HH:MM format. If user says "in 30 minutes", calculate from current time.
+- Always use 24-hour format when constructing datetime strings for tool calls (e.g. 16:30 not 4:30pm).
+- Always confirm the event or reminder details naturally after adding.
 - If user asks what's on their calendar, use today_events or upcoming_events.
+- If user asks about reminders, use list_reminders.
 - NEVER say you will use a tool without actually outputting the TOOL: format. If you mean to call a tool, your full response must be JUST the TOOL: line — no narration, no explanation, no "let me check" before it.
 - If a tool result contains "error", be honest about the failure. NEVER fabricate data.
 - After a tool result is given to you, respond in natural language ONLY — never output TOOL: syntax in your final answer to the user.
@@ -82,7 +94,6 @@ def format_datetime(dt_str: str) -> str:
     if not dt_str or dt_str == 'None':
         return ''
     try:
-        from datetime import datetime
         dt = datetime.fromisoformat(dt_str.replace('+00:00', '').strip())
         return dt.strftime('%a, %b %d at %I:%M %p')
     except:
@@ -335,6 +346,53 @@ def handle_tool_call(tool_response: str) -> str:
                 result += f"   ID: {e['id']}\n\n"
             return result.strip()
 
+        elif tool_name == 'set_reminder':
+            parts_rem = argument.split('|')
+            if len(parts_rem) < 2:
+                return "Please provide reminder title and date/time."
+            title = parts_rem[0].strip()
+            due_str = parts_rem[1].strip()
+            try:
+                due_at = parse_relative_time(due_str) or datetime.fromisoformat(due_str)
+            except ValueError:
+                return f"I couldn't parse the time '{due_str}'. Please use a format like '2025-01-15 14:00'."
+            result = create_reminder(title, due_at)
+            if not result['success']:
+                return f"Reminder error: {result['error']}"
+            return f"Reminder set: \"{title}\" at {due_str}"
+
+        elif tool_name == 'list_reminders':
+            reminders = list_reminders(include_completed=False)
+            if not reminders:
+                return "You have no pending reminders."
+            if 'error' in reminders[0]:
+                return f"Reminder error: {reminders[0]['error']}"
+            result = "Your pending reminders:\n\n"
+            for r in reminders:
+                result += f"• [{r['id']}] **{r['title']}**\n"
+                result += f"  Due: {format_datetime(r['due_at'])}\n\n"
+            return result.strip()
+
+        elif tool_name == 'complete_reminder':
+            try:
+                rid = int(argument.strip())
+            except ValueError:
+                return "Please provide a valid reminder ID number."
+            result = complete_reminder(rid)
+            if not result['success']:
+                return f"Error: {result['error']}"
+            return "Reminder marked as complete."
+
+        elif tool_name == 'delete_reminder':
+            try:
+                rid = int(argument.strip())
+            except ValueError:
+                return "Please provide a valid reminder ID number."
+            result = delete_reminder(rid)
+            if not result['success']:
+                return f"Error: {result['error']}"
+            return "Reminder deleted."
+
     except Exception as ex:
         return f"Tool execution error: {str(ex)}"
 
@@ -359,8 +417,11 @@ def chat():
     t2 = time.time()
     print(f"[TIMING] get_recent_history: {t2 - t1:.2f}s")
 
-    today_str = datetime.now().strftime('%A, %B %d, %Y')
-    dynamic_prompt = SYSTEM_PROMPT + f'\n\nCURRENT DATE: Today is {today_str}. Use this when calculating dates like "tomorrow", "next Monday", etc.'
+    now = datetime.now()
+    today_str = now.strftime('%A, %B %d, %Y')
+    time_str = now.strftime('%I:%M %p')
+    dynamic_prompt = SYSTEM_PROMPT + f'\n\nCURRENT DATE AND TIME: Today is {today_str} and the current time is {time_str} (Pakistan Standard Time). Use this when calculating dates and times like "tomorrow", "in 30 minutes", "at 4:30pm", etc. Always use 24-hour format when constructing datetime strings for tool calls.'
+
     messages = [{'role': 'system', 'content': dynamic_prompt}]
     messages.extend(history)
     messages.append({'role': 'user', 'content': user_message})
