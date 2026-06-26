@@ -17,7 +17,7 @@ def get_weather(city='Jamshoro'):
             'units': 'metric',
         }
 
-        res = requests.get(f'{BASE_URL}/weather', params=params, timeout=10)
+        res = requests.get(f'{BASE_URL}/weather', params=params, timeout=5)
         data = res.json()
 
         if data.get('cod') != 200:
