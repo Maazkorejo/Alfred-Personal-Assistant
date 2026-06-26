@@ -2,6 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 from .config import config
 
+
 def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__)
     app.config.from_object(config[config_name])
@@ -15,5 +16,8 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(tts_bp, url_prefix="/api")
     app.register_blueprint(calendar_bp, url_prefix="/api")
     app.register_blueprint(reminders_bp, url_prefix="/api")
+
+    from .reminder_checker import start_reminder_checker
+    start_reminder_checker()
 
     return app
