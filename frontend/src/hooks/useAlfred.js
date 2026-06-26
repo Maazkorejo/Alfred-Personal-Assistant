@@ -13,6 +13,7 @@ export function useAlfred() {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [activeNav, setActiveNav] = useState('New Chat');
+  const [sessionId, setSessionId] = useState(null);
   const timerRef = useRef(null);
 
   const setState = useCallback((s) => {
@@ -79,11 +80,15 @@ export function useAlfred() {
       const res = await fetch('http://127.0.0.1:5000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, session_id: sessionId }),
       });
 
       const data = await res.json();
       const reply = data.response || 'I apologize, I encountered an issue.';
+
+      if (data.session_id && !sessionId) {
+        setSessionId(data.session_id);
+      }
 
       setState('responding');
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
@@ -115,6 +120,23 @@ export function useAlfred() {
       speech.startListening();
     }
   }, [speech]);
+  
+  const startNewChat = useCallback(() => {
+    setSessionId(null);
+    setMessages([]);
+  }, []);
+
+  const loadSession = useCallback(async (sid) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:5000/api/sessions/${sid}`);
+      const data = await res.json();
+      const loadedMessages = (data.messages || []).map(m => ({ role: m.role, content: m.content }));
+      setMessages(loadedMessages);
+      setSessionId(sid);
+    } catch (err) {
+      console.error('Failed to load session:', err);
+    }
+  }, []);
 
   return {
     alfredState,
@@ -128,5 +150,8 @@ export function useAlfred() {
     sendMessage,
     toggleMic,
     isSpeechSupported: speech.isSupported,
+    sessionId,
+    startNewChat,
+    loadSession,
   };
 }

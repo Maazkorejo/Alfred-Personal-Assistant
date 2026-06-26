@@ -6,6 +6,7 @@ import InputBar from './components/InputBar';
 import ChatLog from './components/ChatLog';
 import EmailPanel from './components/EmailPanel';
 import MemoryPanel from './components/MemoryPanel';
+import ChatHistoryPanel from './components/ChatHistoryPanel';
 import './styles/main.css';
 
 function App() {
@@ -20,6 +21,8 @@ function App() {
     setActiveNav,
     sendMessage,
     toggleMic,
+    startNewChat,
+    loadSession,
   } = useAlfred();
 
   const handleInputFocus = () => {
@@ -35,8 +38,19 @@ function App() {
     sendMessage(text);
   };
 
+  const handleNewChat = () => {
+    startNewChat();
+    setActiveNav('New Chat');
+  };
+
+  const handleSelectSession = async (sessionId) => {
+    await loadSession(sessionId);
+    setActiveNav('New Chat');
+  };
+
   const isEmailPanel = activeNav === 'Email';
   const isMemoryPanel = activeNav === 'Memory';
+  const isChatHistoryPanel = activeNav === 'Chat History';
 
   return (
     <div className="app">
@@ -45,6 +59,7 @@ function App() {
         stateConfig={stateConfig}
         activeNav={activeNav}
         setActiveNav={setActiveNav}
+        onNewChat={handleNewChat}
       />
 
       <div id="main">
@@ -56,6 +71,11 @@ function App() {
           <EmailPanel onBack={() => setActiveNav('New Chat')} />
         ) : isMemoryPanel ? (
           <MemoryPanel onBack={() => setActiveNav('New Chat')} />
+        ) : isChatHistoryPanel ? (
+          <ChatHistoryPanel
+            onBack={() => setActiveNav('New Chat')}
+            onSelectSession={handleSelectSession}
+          />
         ) : (
           <>
             <div id="center">

@@ -1,4 +1,4 @@
-export default function Sidebar({ alfredState, stateConfig, activeNav, setActiveNav }) {
+export default function Sidebar({ alfredState, stateConfig, activeNav, setActiveNav, onNewChat }) {
   const cfg = stateConfig[alfredState];
 
   const navItems = [
@@ -62,7 +62,13 @@ export default function Sidebar({ alfredState, stateConfig, activeNav, setActive
           <button
             key={item.label}
             className={`nav-btn${activeNav === item.label ? ' active' : ''}`}
-            onClick={() => setActiveNav(item.label)}
+            onClick={() => {
+              if (item.label === 'New Chat' && onNewChat) {
+                onNewChat();
+              } else {
+                setActiveNav(item.label);
+              }
+            }}
           >
             {item.icon}
             {item.label}
