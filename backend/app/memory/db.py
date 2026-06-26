@@ -1,5 +1,6 @@
 import os
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.pool import QueuePool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,6 +14,13 @@ def get_engine():
         db_url = os.environ.get('DATABASE_URL')
         if not db_url:
             raise RuntimeError('DATABASE_URL is not set')
+
+        # Add connect_timeout to the connection string
+        if '?' in db_url:
+            db_url += '&connect_timeout=10'
+        else:
+            db_url += '?connect_timeout=10'
+
         _engine = create_engine(
             db_url,
             pool_size=5,
@@ -20,7 +28,18 @@ def get_engine():
             pool_pre_ping=True,
             pool_recycle=300,
         )
+        _warm_pool()
     return _engine
+
+
+def _warm_pool():
+    """Open one connection at startup to pay the latency cost before first request."""
+    try:
+        with _engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        print('[DB] Connection pool warmed up')
+    except Exception as e:
+        print(f'[DB] Pool warmup failed (non-fatal): {e}')
 
 
 def save_message(role: str, content: str, session_id: str = None):
@@ -54,6 +73,7 @@ def get_recent_history(limit: int = 10, session_id: str = None) -> list[dict]:
             )
         rows = result.fetchall()
         return [{'role': r[0], 'content': r[1]} for r in reversed(rows)]
+
 
 def get_all_history(limit: int = 100) -> list[dict]:
     """Fetch full conversation history for the Memory panel."""
@@ -90,6 +110,7 @@ def clear_all_history():
     with engine.connect() as conn:
         conn.execute(text('DELETE FROM conversation_history'))
         conn.commit()
+
 
 def get_all_sessions() -> list[dict]:
     """Get a list of distinct chat sessions with their first message and timestamp."""
