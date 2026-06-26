@@ -19,7 +19,7 @@ def get_top_headlines(country='us', category=None, limit=5):
         if category:
             params['category'] = category
 
-        res = requests.get(f'{BASE_URL}/top-headlines', params=params, timeout=10)
+        res = requests.get(f'{BASE_URL}/top-headlines', params=params, timeout=5)
         data = res.json()
 
         if data.get('status') != 'ok':
@@ -52,7 +52,7 @@ def search_news(query, limit=5):
             'language': 'en',
         }
 
-        res = requests.get(f'{BASE_URL}/everything', params=params, timeout=10)
+        res = requests.get(f'{BASE_URL}/everything', params=params, timeout=5)
         data = res.json()
 
         if data.get('status') != 'ok':
