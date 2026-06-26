@@ -7,6 +7,7 @@ function formatDisplay(dtStr) {
   try {
     const dt = new Date(dtStr);
     return dt.toLocaleString('en-US', {
+      timeZone: 'Asia/Karachi',
       weekday: 'short', month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: true
     });

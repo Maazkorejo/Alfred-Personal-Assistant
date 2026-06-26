@@ -1,12 +1,19 @@
 from datetime import datetime, timedelta
 import re
+import pytz
+from datetime import datetime, timedelta
+import re
 from app.memory.db import get_engine
 from sqlalchemy import text
 
 
 def create_reminder(title: str, due_at: datetime) -> dict:
-    """Create a new reminder."""
+    """Create a new reminder. Interprets naive datetimes as PKT."""
     try:
+        pkt = pytz.timezone('Asia/Karachi')
+        # If datetime has no timezone info, treat it as PKT
+        if due_at.tzinfo is None:
+            due_at = pkt.localize(due_at)
         engine = get_engine()
         with engine.connect() as conn:
             result = conn.execute(
