@@ -7,6 +7,7 @@ import ChatLog from './components/ChatLog';
 import EmailPanel from './components/EmailPanel';
 import MemoryPanel from './components/MemoryPanel';
 import ChatHistoryPanel from './components/ChatHistoryPanel';
+import CalendarPanel from './components/CalendarPanel';
 import './styles/main.css';
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
   const isEmailPanel = activeNav === 'Email';
   const isMemoryPanel = activeNav === 'Memory';
   const isChatHistoryPanel = activeNav === 'Chat History';
+  const isCalendarPanel = activeNav === 'Calendar';
 
   return (
     <div className="app">
@@ -76,6 +78,8 @@ function App() {
             onBack={() => setActiveNav('New Chat')}
             onSelectSession={handleSelectSession}
           />
+        ) : isCalendarPanel ? (
+          <CalendarPanel onBack={() => setActiveNav('New Chat')} />
         ) : (
           <>
             <div id="center">
