@@ -1,3 +1,4 @@
+from datetime import datetime
 import time
 import re
 from flask import Blueprint, request, jsonify
@@ -358,7 +359,9 @@ def chat():
     t2 = time.time()
     print(f"[TIMING] get_recent_history: {t2 - t1:.2f}s")
 
-    messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
+    today_str = datetime.now().strftime('%A, %B %d, %Y')
+    dynamic_prompt = SYSTEM_PROMPT + f'\n\nCURRENT DATE: Today is {today_str}. Use this when calculating dates like "tomorrow", "next Monday", etc.'
+    messages = [{'role': 'system', 'content': dynamic_prompt}]
     messages.extend(history)
     messages.append({'role': 'user', 'content': user_message})
 
