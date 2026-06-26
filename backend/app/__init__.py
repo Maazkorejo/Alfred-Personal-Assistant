@@ -8,7 +8,7 @@ def create_app(config_name: str = 'default') -> Flask:
     app.config.from_object(config[config_name])
     CORS(app, origins=[app.config['FRONTEND_URL']])
 
-    from .routes import health_bp, chat_bp, emails_bp, memory_bp, tts_bp, calendar_bp, reminders_bp
+    from .routes import health_bp, chat_bp, emails_bp, memory_bp, tts_bp, calendar_bp, reminders_bp, spotify_bp
     app.register_blueprint(health_bp)
     app.register_blueprint(chat_bp, url_prefix="/api")
     app.register_blueprint(emails_bp, url_prefix="/api")
@@ -16,6 +16,7 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(tts_bp, url_prefix="/api")
     app.register_blueprint(calendar_bp, url_prefix="/api")
     app.register_blueprint(reminders_bp, url_prefix="/api")
+    app.register_blueprint(spotify_bp, url_prefix="/api")
 
     from .reminder_checker import start_reminder_checker
     start_reminder_checker()
