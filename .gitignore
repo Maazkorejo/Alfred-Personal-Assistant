@@ -36,3 +36,8 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# TTS voices and audio test files
+backend/piper_voices/
+backend/tts_output/
+backend/*.wav
