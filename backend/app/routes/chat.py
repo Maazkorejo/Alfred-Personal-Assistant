@@ -11,6 +11,7 @@ from app.agent.tools.weather_tool import get_weather
 from app.agent.tools.time_tool import get_current_time
 from app.agent.tools.system_tool import open_website
 from app.agent.tools.app_launcher_tool import open_app, open_path
+from app.agent.tools.calendar_tool import add_event, get_today_events, get_upcoming_events, delete_event, search_events
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -33,6 +34,11 @@ AVAILABLE TOOLS:
 - open_browser: open a website (argument is site name, URL, or search query)
 - open_app: open any installed desktop or Windows Store application by name (e.g. "spotify", "notepad", "discord", "linkedin", "chrome")
 - open_path: open a specific file or folder by its full path (argument is the absolute path, e.g. "C:\\Users\\maazk\\Desktop" or "C:\\Users\\maazk\\Documents\\report.pdf")
+- add_event: add a calendar event (argument format: "title|YYYY-MM-DD HH:MM" or "title|YYYY-MM-DD HH:MM|YYYY-MM-DD HH:MM" for end time, or "title|YYYY-MM-DD HH:MM|none|description")
+- today_events: get all events scheduled for today (argument: none)
+- upcoming_events: get events in the next N days (argument: number of days, e.g. 7)
+- delete_event: delete a calendar event by ID (argument: event UUID)
+- search_calendar: search calendar events by keyword (argument: keyword)
 
 TOOL CALL EXAMPLES (respond with ONLY this, no other text):
 TOOL:check_emails:5
@@ -42,6 +48,13 @@ TOOL:open_browser:youtube
 TOOL:open_app:spotify
 TOOL:open_app:linkedin
 TOOL:open_path:C:\\Users\\maazk\\Desktop
+TOOL:add_event:Team meeting|2025-01-15 14:00
+TOOL:add_event:Doctor appointment|2025-01-16 10:00|2025-01-16 11:00
+TOOL:add_event:Call with Ali|2025-01-17 15:00|none|Discuss project updates
+TOOL:today_events:none
+TOOL:upcoming_events:7
+TOOL:delete_event:uuid-here
+TOOL:search_calendar:meeting
 
 RULES:
 - If the user mentions an email address (@), use search_by_sender.
@@ -50,6 +63,10 @@ RULES:
 - If asked to open/launch/watch/search something on the web, use open_browser.
 - If asked to open a DESKTOP APP (Spotify, Notepad, Discord, LinkedIn, VS Code), use open_app — NOT open_browser.
 - If the user asks to open a specific file or folder by path, use open_path.
+- For calendar events, parse the date and time naturally. If user says "tomorrow at 3pm", convert to the correct YYYY-MM-DD HH:MM format based on today's date.
+- If user says "today" for an event, use today's date. If they say "next Monday", calculate the correct date.
+- Always confirm the event details naturally after adding.
+- If user asks what's on their calendar, use today_events or upcoming_events.
 - NEVER say you will use a tool without actually outputting the TOOL: format. If you mean to call a tool, your full response must be JUST the TOOL: line — no narration, no explanation, no "let me check" before it.
 - If a tool result contains "error", be honest about the failure. NEVER fabricate data.
 - After a tool result is given to you, respond in natural language ONLY — never output TOOL: syntax in your final answer to the user.
@@ -57,6 +74,18 @@ RULES:
 - Address the user by whatever name they request.
 
 REMEMBER: Tool calls must be EXACTLY "TOOL:name:argument" with absolutely no extra words, explanation, or narration before or after. Not even "Let me check that for you" — just the TOOL: line by itself.'''
+
+
+def format_datetime(dt_str: str) -> str:
+    """Format a datetime string nicely for display."""
+    if not dt_str or dt_str == 'None':
+        return ''
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(dt_str.replace('+00:00', '').strip())
+        return dt.strftime('%a, %b %d at %I:%M %p')
+    except:
+        return dt_str
 
 
 def handle_tool_call(tool_response: str) -> str:
@@ -229,6 +258,81 @@ def handle_tool_call(tool_response: str) -> str:
             if not result['success']:
                 return f"Path error: {result['error']}"
             return f"Opened: {result['path']}"
+
+        elif tool_name == 'add_event':
+            parts_event = argument.split('|')
+            if len(parts_event) < 2:
+                return "Please provide event title and date/time."
+            title = parts_event[0].strip()
+            start = parts_event[1].strip()
+            end = parts_event[2].strip() if len(parts_event) > 2 and parts_event[2].strip() != 'none' else None
+            description = parts_event[3].strip() if len(parts_event) > 3 else None
+            result = add_event(title, start, end, description)
+            if not result['success']:
+                return f"Calendar error: {result['error']}"
+            return f"Event added: {result['message']}"
+
+        elif tool_name == 'today_events':
+            events = get_today_events()
+            if not events:
+                return "You have no events scheduled for today."
+            if 'error' in events[0]:
+                return f"Calendar error: {events[0]['error']}"
+            result = f"Your events for today:\n\n"
+            for i, e in enumerate(events, 1):
+                result += f"{i}. **{e['title']}**\n"
+                result += f"   {format_datetime(e['start_datetime'])}"
+                if e['end_datetime']:
+                    result += f" → {format_datetime(e['end_datetime'])}"
+                result += "\n"
+                if e['description']:
+                    result += f"   {e['description']}\n"
+                result += f"   ID: {e['id']}\n\n"
+            return result.strip()
+
+        elif tool_name == 'upcoming_events':
+            days = int(argument) if argument.isdigit() else 7
+            events = get_upcoming_events(days)
+            if not events:
+                return f"No events in the next {days} days."
+            if 'error' in events[0]:
+                return f"Calendar error: {events[0]['error']}"
+            result = f"Upcoming events (next {days} days):\n\n"
+            for i, e in enumerate(events, 1):
+                result += f"{i}. **{e['title']}**\n"
+                result += f"   {format_datetime(e['start_datetime'])}"
+                if e['end_datetime']:
+                    result += f" → {format_datetime(e['end_datetime'])}"
+                result += "\n"
+                if e['description']:
+                    result += f"   {e['description']}\n"
+                result += f"   ID: {e['id']}\n\n"
+            return result.strip()
+
+        elif tool_name == 'delete_event':
+            event_id = argument.strip()
+            if not event_id or event_id == 'none':
+                return "Please provide the event ID to delete."
+            result = delete_event(event_id)
+            if not result['success']:
+                return f"Delete error: {result['error']}"
+            return "Event deleted successfully."
+
+        elif tool_name == 'search_calendar':
+            keyword = argument if argument != 'none' else ''
+            if not keyword:
+                return "Please specify a search keyword."
+            events = search_events(keyword)
+            if not events:
+                return f"No events found matching '{keyword}'."
+            if 'error' in events[0]:
+                return f"Calendar error: {events[0]['error']}"
+            result = f"Found {len(events)} event(s) matching '{keyword}':\n\n"
+            for i, e in enumerate(events, 1):
+                result += f"{i}. **{e['title']}**\n"
+                result += f"   {format_datetime(e['start_datetime'])}\n"
+                result += f"   ID: {e['id']}\n\n"
+            return result.strip()
 
     except Exception as ex:
         return f"Tool execution error: {str(ex)}"
