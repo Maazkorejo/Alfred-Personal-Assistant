@@ -3,6 +3,8 @@ import re
 from flask import Blueprint, request, jsonify
 from app.agent.mistral_client import chat_completion
 from app.memory.db import save_message, get_recent_history
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from app.agent.tools.gmail_tool import get_unread_emails, get_sent_emails, get_all_recent_emails, get_email_count, search_emails, search_by_sender
 from app.agent.tools.news_tool import get_top_headlines, search_news
 from app.agent.tools.weather_tool import get_weather
@@ -245,8 +247,10 @@ def chat():
     if not user_message:
         return jsonify({'error': 'Message cannot be empty'}), 400
 
+    session_id = data.get('session_id') or str(uuid.uuid4())
+
     t1 = time.time()
-    history = get_recent_history(limit=10)
+    history = get_recent_history(limit=10, session_id=session_id)
     t2 = time.time()
     print(f"[TIMING] get_recent_history: {t2 - t1:.2f}s")
 
@@ -283,16 +287,21 @@ def chat():
     else:
         final_response = response
 
+    # Save both messages concurrently — they're independent
     t9 = time.time()
-    save_message('user', user_message)
-    save_message('assistant', final_response)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f1 = executor.submit(save_message, 'user', user_message, session_id)
+        f2 = executor.submit(save_message, 'assistant', final_response, session_id)
+        f1.result()
+        f2.result()
     t10 = time.time()
-    print(f"[TIMING] save_message x2: {t10 - t9:.2f}s")
+    print(f"[TIMING] save_message x2 (parallel): {t10 - t9:.2f}s")
 
     print(f"[TIMING] TOTAL: {t10 - t0:.2f}s")
 
     return jsonify({
         'response': final_response,
         'tool_calls': [],
-        'trace': []
+        'trace': [],
+        'session_id': session_id
     }), 200
