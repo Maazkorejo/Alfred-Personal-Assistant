@@ -287,7 +287,6 @@ def chat():
     else:
         final_response = response
 
-    # Save both messages concurrently — they're independent
     t9 = time.time()
     with ThreadPoolExecutor(max_workers=2) as executor:
         f1 = executor.submit(save_message, 'user', user_message, session_id)
