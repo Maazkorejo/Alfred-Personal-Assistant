@@ -1,3 +1,4 @@
+import RemindersPanel from './components/RemindersPanel';
 import { useAlfred } from './hooks/useAlfred';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -53,6 +54,7 @@ function App() {
   const isMemoryPanel = activeNav === 'Memory';
   const isChatHistoryPanel = activeNav === 'Chat History';
   const isCalendarPanel = activeNav === 'Calendar';
+  const isRemindersPanel = activeNav === 'Reminders';
 
   return (
     <div className="app">
@@ -80,6 +82,8 @@ function App() {
           />
         ) : isCalendarPanel ? (
           <CalendarPanel onBack={() => setActiveNav('New Chat')} />
+        ) : isRemindersPanel ? (
+          <RemindersPanel onBack={() => setActiveNav('New Chat')} />
         ) : (
           <>
             <div id="center">
