@@ -1,6 +1,7 @@
 from datetime import datetime
 import time
 import re
+import os
 from flask import Blueprint, request, jsonify
 from app.agent.mistral_client import chat_completion
 from app.memory.db import save_message, get_recent_history
@@ -14,8 +15,11 @@ from app.agent.tools.system_tool import open_website
 from app.agent.tools.app_launcher_tool import open_app, open_path
 from app.agent.tools.calendar_tool import add_event, get_today_events, get_upcoming_events, delete_event, search_events
 from app.agent.tools.reminder_tool import create_reminder, list_reminders, complete_reminder, delete_reminder, parse_relative_time
+from app.agent.demo_responses import get_demo_response
 
 chat_bp = Blueprint('chat', __name__)
+
+DEMO_MODE = os.environ.get('DEMO_MODE', 'false').lower() == 'true'
 
 SYSTEM_PROMPT = '''CRITICAL RULE: When you need to use a tool, your ENTIRE response must be ONLY this format, nothing else, no explanation before or after:
 TOOL:tool_name:argument
@@ -411,6 +415,16 @@ def chat():
         return jsonify({'error': 'Message cannot be empty'}), 400
 
     session_id = data.get('session_id') or str(uuid.uuid4())
+
+    # Demo mode — return mock responses without any real API calls
+    if DEMO_MODE:
+        demo_reply = get_demo_response(user_message)
+        return jsonify({
+            'response': demo_reply,
+            'tool_calls': [],
+            'trace': [],
+            'session_id': session_id
+        }), 200
 
     t1 = time.time()
     history = get_recent_history(limit=10, session_id=session_id)
