@@ -1,9 +1,13 @@
 @echo off
-set SCRIPT_PATH=C:\Users\maazk\Desktop\Alfred-Personal-Assistant\backend\clap_listener.py
-set PYTHON_PATH=C:\Users\maazk\Desktop\Alfred-Personal-Assistant\backend\venv\Scripts\pythonw.exe
-set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
+set BASE=C:\Users\maazk\Desktop\Alfred-Personal-Assistant\backend
+set PYTHON=C:\Users\maazk\Desktop\Alfred-Personal-Assistant\backend\venv\Scripts\pythonw.exe
+set STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 
-echo Creating Alfred startup shortcut...
-powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%STARTUP_DIR%\Alfred-Clap-Listener.lnk'); $s.TargetPath = '%PYTHON_PATH%'; $s.Arguments = '%SCRIPT_PATH%'; $s.WorkingDirectory = 'C:\Users\maazk\Desktop\Alfred-Personal-Assistant\backend'; $s.WindowStyle = 7; $s.Save()"
-echo Done. Alfred clap listener will start automatically on boot.
+echo Creating Alfred Clap Listener shortcut...
+powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%STARTUP%\Alfred-Clap-Listener.lnk'); $s.TargetPath = '%PYTHON%'; $s.Arguments = '%BASE%\clap_listener.py'; $s.WorkingDirectory = '%BASE%'; $s.WindowStyle = 7; $s.Save()"
+
+echo Creating Alfred Tray shortcut...
+powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%STARTUP%\Alfred-Tray.lnk'); $s.TargetPath = '%PYTHON%'; $s.Arguments = '%BASE%\tray.py'; $s.WorkingDirectory = '%BASE%'; $s.WindowStyle = 7; $s.Save()"
+
+echo Done. Both Alfred clap listener and tray icon will start on boot.
 pause
