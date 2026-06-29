@@ -1,5 +1,5 @@
 """
-Alfred Clap-to-Wake Listener (v2 — spectral clap detection)
+Alfred Clap-to-Wake Listener (v3 — spectral clap detection + auto-launch)
 
 A real clap is distinguished from speech/coughs by:
 1. Extremely fast attack (energy rises from baseline to peak in <5ms)
@@ -17,27 +17,70 @@ import time
 import webbrowser
 import win32gui
 import win32con
+import subprocess
+import os
+import requests
 
 SAMPLE_RATE = 44100
-BLOCK_SIZE = 512  # ~11.6ms per block at 44.1kHz — fine enough to catch a clap's attack
+BLOCK_SIZE = 512
 CLAP_WINDOW = 1.5
 COOLDOWN = 2.5
 ALFRED_URL = "http://localhost:5173"
+ALFRED_BACKEND_URL = "http://localhost:5000/api/health"
 ALFRED_WINDOW_TITLE = "Alfred"
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+VENV_PYTHON = os.path.join(BASE_DIR, 'venv', 'Scripts', 'python.exe')
+FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), 'frontend')
+
 # Tunable detection parameters
-AMPLITUDE_THRESHOLD = 0.25       # Minimum peak volume to even consider
-HF_RATIO_THRESHOLD = 0.35        # Min fraction of energy that must be >3kHz
-MIN_ONSET_SLOPE = 0.15           # Minimum jump in volume between consecutive blocks (fast attack)
+AMPLITUDE_THRESHOLD = 0.25
+HF_RATIO_THRESHOLD = 0.35
+MIN_ONSET_SLOPE = 0.15
 
 last_clap_time = 0
 clap_count = 0
 last_trigger_time = 0
 prev_volume = 0.0
 
-# Precompute FFT frequency bins for our block size
 FREQ_BINS = np.fft.rfftfreq(BLOCK_SIZE, d=1.0 / SAMPLE_RATE)
-HF_CUTOFF_INDEX = np.searchsorted(FREQ_BINS, 3000)  # index where freq crosses 3kHz
+HF_CUTOFF_INDEX = np.searchsorted(FREQ_BINS, 3000)
+
+
+def is_backend_running() -> bool:
+    """Check if Flask backend is already up."""
+    try:
+        requests.get(ALFRED_BACKEND_URL, timeout=2)
+        return True
+    except:
+        return False
+
+
+def is_frontend_running() -> bool:
+    """Check if Vite frontend is already up."""
+    try:
+        requests.get(ALFRED_URL, timeout=2)
+        return True
+    except:
+        return False
+
+
+def launch_backend():
+    """Start Flask backend in a new terminal window."""
+    print('[CLAP] Launching Alfred backend...')
+    subprocess.Popen(
+        f'start "Alfred Backend" cmd /k "{VENV_PYTHON} {os.path.join(BASE_DIR, "run.py")}"',
+        shell=True
+    )
+
+
+def launch_frontend():
+    """Start Vite frontend in a new terminal window."""
+    print('[CLAP] Launching Alfred frontend...')
+    subprocess.Popen(
+        f'start "Alfred Frontend" cmd /k "cd /d {FRONTEND_DIR} && npm run dev"',
+        shell=True
+    )
 
 
 def find_alfred_window():
@@ -55,16 +98,29 @@ def find_alfred_window():
 
 
 def wake_alfred():
+    backend_was_running = is_backend_running()
+    frontend_was_running = is_frontend_running()
+
+    if not backend_was_running:
+        launch_backend()
+        print('[CLAP] Waiting for backend to start...')
+        time.sleep(6)
+
+    if not frontend_was_running:
+        launch_frontend()
+        print('[CLAP] Waiting for frontend to compile...')
+        time.sleep(5)
+
     hwnd = find_alfred_window()
     if hwnd:
-        print("[CLAP] Found existing Alfred window — bringing to focus.")
+        print('[CLAP] Found existing Alfred window — bringing to focus.')
         try:
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
             win32gui.SetForegroundWindow(hwnd)
         except Exception as e:
-            print(f"[CLAP] Could not steal focus (Windows restriction): {e}")
+            print(f'[CLAP] Could not steal focus: {e}')
     else:
-        print("[CLAP] No existing window found — opening Alfred.")
+        print('[CLAP] Opening Alfred in browser.')
         webbrowser.open(ALFRED_URL)
 
 
@@ -74,14 +130,10 @@ def is_clap_like(indata, volume):
     (broadband, high-frequency dominant) vs speech-like (low-frequency dominant).
     """
     samples = indata[:, 0] if indata.ndim > 1 else indata
-
-    # FFT magnitude spectrum
     spectrum = np.abs(np.fft.rfft(samples))
     total_energy = np.sum(spectrum) + 1e-9
-
     hf_energy = np.sum(spectrum[HF_CUTOFF_INDEX:])
     hf_ratio = hf_energy / total_energy
-
     return hf_ratio > HF_RATIO_THRESHOLD
 
 
@@ -106,22 +158,22 @@ def audio_callback(indata, frames, time_info, status):
                 clap_count = 1
 
             last_clap_time = now
-            print(f"[CLAP] Clap-like burst detected (count={clap_count}, hf_ratio passed)")
+            print(f'[CLAP] Clap-like burst detected (count={clap_count}, hf_ratio passed)')
 
             if clap_count >= 2:
-                print("[CLAP] Double clap confirmed! Waking Alfred...")
+                print('[CLAP] Double clap confirmed! Waking Alfred...')
                 wake_alfred()
                 clap_count = 0
                 last_trigger_time = now
 
 
 def main():
-    print("=" * 55)
-    print("ALFRED CLAP-TO-WAKE LISTENER (spectral detection v2)")
-    print("Clap twice sharply to wake Alfred.")
-    print("Speech, coughs, and sustained sounds are filtered out.")
-    print("Press Ctrl+C to stop.")
-    print("=" * 55)
+    print('=' * 55)
+    print('ALFRED CLAP-TO-WAKE LISTENER (v3 — auto-launch)')
+    print('Clap twice sharply to wake Alfred.')
+    print('Alfred will launch automatically if not running.')
+    print('Press Ctrl+C to stop.')
+    print('=' * 55)
 
     with sd.InputStream(
         samplerate=SAMPLE_RATE,
