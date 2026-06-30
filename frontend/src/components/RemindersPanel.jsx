@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API = 'http://localhost:5000/api';
+import { API_URL as API } from '../config';
 
 function formatDisplay(dtStr) {
   if (!dtStr || dtStr === 'None') return '';

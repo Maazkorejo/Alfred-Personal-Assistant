@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useSpeechRecognition } from './useSpeechRecognition';
+import { API_URL } from '../config';
 
 const STATE_CONFIG = {
   idle:       { label: 'IDLE',         pillColor: 'rgba(232,213,163,0.45)', bg: 'rgba(255,200,80,0.10)',  dot: 'rgba(232,213,163,0.45)', nameRgb: '232,213,163' },
@@ -38,7 +39,7 @@ export function useAlfred() {
 
   const speak = useCallback(async (text) => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/tts/generate', {
+      const res = await fetch(`${API_URL}/tts/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -46,10 +47,9 @@ export function useAlfred() {
       const data = await res.json();
 
       if (data.filename) {
-        const audio = new Audio(`http://127.0.0.1:5000/api/tts/audio/${data.filename}`);
+        const audio = new Audio(`${API_URL}/tts/audio/${data.filename}`);
         audio.play();
       } else {
-        // Fallback to browser TTS if Piper fails
         fallbackSpeak(text);
       }
     } catch (err) {
@@ -77,7 +77,7 @@ export function useAlfred() {
     setState('processing');
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/chat', {
+      const res = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, session_id: sessionId }),
@@ -99,7 +99,7 @@ export function useAlfred() {
 
     } catch (err) {
       setState('idle');
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection to Alfred backend failed. Ensure the Flask server is running on port 5000.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection to Alfred backend failed. Ensure the Flask server is running.' }]);
     }
   }, [setState, speak]);
 
@@ -120,7 +120,7 @@ export function useAlfred() {
       speech.startListening();
     }
   }, [speech]);
-  
+
   const startNewChat = useCallback(() => {
     setSessionId(null);
     setMessages([]);
@@ -128,7 +128,7 @@ export function useAlfred() {
 
   const loadSession = useCallback(async (sid) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/sessions/${sid}`);
+      const res = await fetch(`${API_URL}/sessions/${sid}`);
       const data = await res.json();
       const loadedMessages = (data.messages || []).map(m => ({ role: m.role, content: m.content }));
       setMessages(loadedMessages);
