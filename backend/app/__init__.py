@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flask_cors import CORS
 from .config import config
@@ -18,7 +19,8 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(reminders_bp, url_prefix="/api")
     app.register_blueprint(spotify_bp, url_prefix="/api")
 
-    from .reminder_checker import start_reminder_checker
-    start_reminder_checker()
+    if os.environ.get('DEMO_MODE', 'false').lower() != 'true':
+        from .reminder_checker import start_reminder_checker
+        start_reminder_checker()
 
     return app
