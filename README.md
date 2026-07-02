@@ -412,7 +412,7 @@ Demo limitations vs local version:
 
 ## 🗺 Roadmap
 
-- [x] Core chat with persistent memory
+- [x] Core chat with persistent memory.
 - [x] Gmail integration (IMAP)
 - [x] Weather, News, Time tools
 - [x] Browser and app control
